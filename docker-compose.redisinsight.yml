@@ -1,0 +1,16 @@
+services:
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: redisense-redisinsight
+    ports:
+      - "5540:5540"
+    volumes:
+      - redisinsight-data:/db
+    environment:
+      - RIPORT=5540
+      - RIHOMEDIR=/db
+    restart: unless-stopped
+
+volumes:
+  redisinsight-data:
+    driver: local
