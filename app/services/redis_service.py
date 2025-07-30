@@ -289,5 +289,244 @@ class RedisService:
             logger.error(f"Error getting Redis stats: {e}")
             return {}
 
+    def create_vector_index(self) -> bool:
+        """Create Redis vector index for device embeddings using Redis 8 capabilities"""
+        try:
+            # Check if index already exists
+            try:
+                self.redis_client.ft("device_embeddings").info()
+                logger.info("Vector index 'device_embeddings' already exists")
+                return True
+            except:
+                # Index doesn't exist, create it
+                pass
+
+            # Try different import methods for Redis search
+            try:
+                # Method 1: Modern redis-py imports
+                from redis.commands.search.field import VectorField, TextField, TagField
+                from redis.commands.search.indexDefinition import IndexDefinition, IndexType
+                use_modern_api = True
+            except ImportError:
+                try:
+                    # Method 2: Alternative imports
+                    from redisearch import VectorField, TextField, TagField, IndexDefinition
+                    use_modern_api = False
+                except ImportError:
+                    # Method 3: Manual command construction
+                    logger.warning("RediSearch Python modules not available, using manual commands")
+                    return self._create_vector_index_manual()
+
+            if use_modern_api:
+                # Create vector index schema using modern API
+                schema = [
+                    TextField("content"),
+                    TagField("device_id"),
+                    TagField("device_type"),
+                    TagField("manufacturer"),
+                    TagField("location"),
+                    VectorField(
+                        "embedding",
+                        "FLAT",
+                        {
+                            "TYPE": "FLOAT32",
+                            "DIM": 384,  # sentence-transformers/paraphrase-MiniLM-L6-v2 dimension
+                            "DISTANCE_METRIC": "COSINE"
+                        }
+                    )
+                ]
+
+                # Create index
+                self.redis_client.ft("device_embeddings").create_index(
+                    schema,
+                    definition=IndexDefinition(
+                        prefix=["device_embed:"],
+                        index_type=IndexType.HASH
+                    )
+                )
+            else:
+                # Use alternative API
+                schema = [
+                    TextField("content"),
+                    TagField("device_id"),
+                    TagField("device_type"),
+                    TagField("manufacturer"),
+                    TagField("location"),
+                    VectorField(
+                        "embedding",
+                        "FLAT",
+                        {
+                            "TYPE": "FLOAT32",
+                            "DIM": 384,
+                            "DISTANCE_METRIC": "COSINE"
+                        }
+                    )
+                ]
+
+                index_def = IndexDefinition(prefix=["device_embed:"])
+                self.redis_client.ft("device_embeddings").create_index(schema, definition=index_def)
+
+            logger.info("Created Redis vector index 'device_embeddings'")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error creating vector index: {e}")
+            # Try manual method as fallback
+            return self._create_vector_index_manual()
+
+    def _create_vector_index_manual(self) -> bool:
+        """Create vector index using manual Redis commands"""
+        try:
+            # Check if index exists
+            try:
+                self.redis_client.execute_command("FT.INFO", "device_embeddings")
+                logger.info("Vector index 'device_embeddings' already exists")
+                return True
+            except:
+                pass
+
+            # Create index using raw Redis commands
+            cmd = [
+                "FT.CREATE", "device_embeddings",
+                "ON", "HASH",
+                "PREFIX", "1", "device_embed:",
+                "SCHEMA",
+                "content", "TEXT",
+                "device_id", "TAG",
+                "device_type", "TAG",
+                "manufacturer", "TAG",
+                "location", "TAG",
+                "embedding", "VECTOR", "FLAT", "6",
+                "TYPE", "FLOAT32",
+                "DIM", "384",
+                "DISTANCE_METRIC", "COSINE"
+            ]
+
+            self.redis_client.execute_command(*cmd)
+            logger.info("Created Redis vector index 'device_embeddings' using manual commands")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error creating vector index manually: {e}")
+            return False
+
+    def store_device_embedding(self, device_id: str, content: str, embedding: List[float], metadata: dict) -> bool:
+        """Store device embedding using Redis 8 vector index"""
+        try:
+            # Convert embedding to bytes for Redis storage
+            import struct
+            embedding_bytes = struct.pack(f'{len(embedding)}f', *embedding)
+
+            # Create document for vector index
+            doc_key = f"device_embed:{device_id}"
+            doc_data = {
+                "content": content,
+                "device_id": device_id,
+                "device_type": metadata.get("device_type", ""),
+                "manufacturer": metadata.get("manufacturer", ""),
+                "location": metadata.get("location", ""),
+                "embedding": embedding_bytes,
+                "created_at": datetime.utcnow().isoformat()
+            }
+
+            # Store document
+            self.redis_client.hset(doc_key, mapping=doc_data)
+
+            logger.info(f"Stored device embedding for {device_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error storing device embedding: {e}")
+            return False
+
+    def vector_search(self, query_embedding: List[float], limit: int = 10) -> List[SemanticSearchResult]:
+        """Perform vector similarity search using Redis 8 vector capabilities"""
+        try:
+            # Convert query embedding to bytes
+            import struct
+            query_bytes = struct.pack(f'{len(query_embedding)}f', *query_embedding)
+
+            # Perform KNN search using Redis FT.SEARCH
+            query = f"*=>[KNN {limit} @embedding $query_vector AS score]"
+
+            results = self.redis_client.ft("device_embeddings").search(
+                query,
+                query_params={"query_vector": query_bytes}
+            )
+
+            # Convert results to SemanticSearchResult objects
+            search_results = []
+            for doc in results.docs:
+                try:
+                    search_results.append(SemanticSearchResult(
+                        device_id=doc.device_id,
+                        content=doc.content,
+                        score=float(doc.score),
+                        metadata={
+                            "device_type": getattr(doc, 'device_type', ''),
+                            "manufacturer": getattr(doc, 'manufacturer', ''),
+                            "location": getattr(doc, 'location', '')
+                        }
+                    ))
+                except Exception as e:
+                    logger.warning(f"Error parsing search result: {e}")
+                    continue
+
+            return search_results
+
+        except Exception as e:
+            logger.error(f"Error in vector search: {e}")
+            # Fallback to old semantic search method
+            return self.semantic_search(np.array(query_embedding), limit)
+
+    def generate_device_embeddings(self) -> bool:
+        """Generate embeddings for all existing devices"""
+        try:
+            from app.services.ai_service import AIService
+
+            ai_service = AIService()
+            devices = self.get_all_devices()
+
+            if not devices:
+                logger.warning("No devices found to generate embeddings for")
+                return False
+
+            # Ensure vector index exists
+            self.create_vector_index()
+
+            success_count = 0
+            for device in devices:
+                try:
+                    # Convert device to searchable text
+                    device_data = device.model_dump()
+                    content = ai_service.create_device_embedding(device_data)
+
+                    # Generate embedding
+                    embedding = ai_service.generate_embedding(content)
+
+                    # Store in vector index
+                    metadata = {
+                        "device_type": device.device_type.value if hasattr(device.device_type, 'value') else str(device.device_type),
+                        "manufacturer": getattr(device, 'manufacturer', ''),
+                        "location": getattr(device, 'location', ''),
+                        "model": getattr(device, 'model', ''),
+                        "power_rating": getattr(device, 'power_rating', 0)
+                    }
+
+                    success = self.store_device_embedding(device.device_id, content, embedding, metadata)
+                    if success:
+                        success_count += 1
+
+                except Exception as e:
+                    logger.error(f"Error generating embedding for device {device.device_id}: {e}")
+                    continue
+
+            logger.info(f"Generated embeddings for {success_count}/{len(devices)} devices")
+            return success_count > 0
+
+        except Exception as e:
+            logger.error(f"Error generating device embeddings: {e}")
+            return False
+
 # Global Redis service instance
 redis_service = RedisService()

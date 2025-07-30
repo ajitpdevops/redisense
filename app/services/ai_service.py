@@ -1,9 +1,16 @@
 import numpy as np
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict, Any
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 import logging
+import warnings
 from config.settings import settings
+from sentence_transformers import SentenceTransformer
+import json
+
+# Suppress specific PyTorch/Transformers warnings
+warnings.filterwarnings("ignore", message=".*encoder_attention_mask.*is deprecated.*")
+warnings.filterwarnings("ignore", category=FutureWarning, module="torch.nn.modules.module")
 
 logger = logging.getLogger(__name__)
 
@@ -11,6 +18,7 @@ class AIService:
     def __init__(self):
         self.scaler = StandardScaler()
         self.anomaly_detector = None
+        self.embedding_model = None
         self._initialize_models()
 
     def _initialize_models(self):
@@ -24,12 +32,41 @@ class AIService:
             )
             logger.info("Initialized anomaly detection model")
 
+            # Initialize embedding model with warning suppression
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", message=".*encoder_attention_mask.*is deprecated.*")
+                warnings.filterwarnings("ignore", category=FutureWarning, module="torch.nn.modules.module")
+
+                model_name = getattr(settings, 'EMBEDDING_MODEL', 'sentence-transformers/paraphrase-MiniLM-L6-v2')
+                self.embedding_model = SentenceTransformer(model_name)
+                logger.info(f"Initialized embedding model: {model_name}")
+
         except Exception as e:
             logger.error(f"Error initializing AI models: {e}")
-            raise
+            # Fallback to mock embeddings if model fails to load
+            self.embedding_model = None
 
     def generate_embedding(self, text: str) -> List[float]:
-        """Generate embedding for text (mock implementation for testing)"""
+        """Generate embedding for text using sentence transformers"""
+        try:
+            if self.embedding_model is not None:
+                # Use real sentence transformer with warning suppression
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", message=".*encoder_attention_mask.*is deprecated.*")
+                    warnings.filterwarnings("ignore", category=FutureWarning, module="torch.nn.modules.module")
+
+                    embedding = self.embedding_model.encode(text)
+                    return embedding.tolist()
+            else:
+                # Fallback to mock implementation
+                return self._generate_mock_embedding(text)
+
+        except Exception as e:
+            logger.error(f"Error generating embedding: {e}")
+            return self._generate_mock_embedding(text)
+
+    def _generate_mock_embedding(self, text: str) -> List[float]:
+        """Generate mock embedding for text (fallback implementation)"""
         try:
             # For testing, return a simple hash-based embedding
             import hashlib
@@ -222,15 +259,78 @@ class AIService:
             logger.error(f"Error in anomaly detection: {e}")
             return []
 
-    def semantic_search(self, query: str, limit: int) -> List[dict]:
-        """Semantic search for CLI compatibility"""
+    def semantic_search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """Semantic search using embeddings and Redis vector search"""
         try:
-            # This is a placeholder implementation for CLI compatibility
-            # In a real implementation, this would use embeddings and Redis vector search
-            return []  # No results for now
+            from app.services.redis_service import RedisService
+
+            # Generate embedding for query
+            query_embedding = self.generate_embedding(query)
+
+            # Use Redis service for vector search
+            redis_service = RedisService()
+            results = redis_service.vector_search(query_embedding, limit)
+
+            # Convert to dictionary format for CLI compatibility
+            formatted_results = []
+            for result in results:
+                formatted_results.append({
+                    'device_id': result.device_id,
+                    'content': result.content,
+                    'score': result.score,
+                    'metadata': result.metadata
+                })
+
+            return formatted_results
+
         except Exception as e:
             logger.error(f"Error in semantic search: {e}")
             return []
+
+    def create_device_embedding(self, device_data: Dict[str, Any]) -> str:
+        """Create searchable text content from device data"""
+        try:
+            # Combine device information into searchable text
+            parts = []
+
+            if device_data.get('name'):
+                parts.append(f"Device: {device_data['name']}")
+
+            if device_data.get('device_type'):
+                parts.append(f"Type: {device_data['device_type']}")
+
+            if device_data.get('manufacturer'):
+                parts.append(f"Manufacturer: {device_data['manufacturer']}")
+
+            if device_data.get('model'):
+                parts.append(f"Model: {device_data['model']}")
+
+            if device_data.get('location'):
+                parts.append(f"Location: {device_data['location']}")
+
+            if device_data.get('description'):
+                parts.append(f"Description: {device_data['description']}")
+
+            # Add power rating and efficiency info
+            if device_data.get('power_rating'):
+                parts.append(f"Power Rating: {device_data['power_rating']}W")
+
+            # Add metadata if available
+            metadata = device_data.get('metadata', {})
+            if isinstance(metadata, dict):
+                for key, value in metadata.items():
+                    if key == 'energy_efficiency_rating':
+                        parts.append(f"Energy Efficiency: {value}")
+                    elif key == 'maintenance_schedule':
+                        parts.append(f"Maintenance: {value}")
+                    elif key == 'operating_hours':
+                        parts.append(f"Operating Hours: {value}")
+
+            return " | ".join(parts)
+
+        except Exception as e:
+            logger.error(f"Error creating device embedding text: {e}")
+            return device_data.get('name', 'Unknown Device')
 
 # Global AI service instance
 ai_service = AIService()

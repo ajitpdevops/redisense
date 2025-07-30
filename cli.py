@@ -8,9 +8,14 @@ import asyncio
 import click
 import logging
 import time
+import warnings
 import numpy as np
 from datetime import datetime, timedelta
 from typing import List
+
+# Suppress PyTorch/Transformers deprecation warnings
+warnings.filterwarnings("ignore", message=".*encoder_attention_mask.*is deprecated.*")
+warnings.filterwarnings("ignore", category=FutureWarning, module="torch.nn.modules.module")
 
 from config.settings import Settings
 from app.services.redis_service import RedisService
@@ -69,7 +74,23 @@ def seed_data(device_count: int, days: int, readings_per_hour: int):
             click.echo(f"   📊 Generated {len(readings)} readings for {device.device_id}")
 
         click.echo(f"✅ Successfully seeded {total_readings} total energy readings")
+
+        # Generate embeddings for semantic search
+        click.echo("🧠 Generating device embeddings for semantic search...")
+        try:
+            redis_service.create_vector_index()
+            embedding_success = redis_service.generate_device_embeddings()
+            if embedding_success:
+                click.echo("✅ Device embeddings generated successfully!")
+            else:
+                click.echo("⚠️ Embeddings generation failed, but devices and readings are stored")
+        except Exception as e:
+            click.echo(f"⚠️ Embedding generation error: {e}")
+
         click.echo(f"🎉 Historical data seeding complete!")
+        click.echo("\n💡 Try semantic search with:")
+        click.echo("   uv run python cli.py search 'HVAC system'")
+        click.echo("   uv run python cli.py search 'energy efficient devices'")
 
     except Exception as e:
         click.echo(f"❌ Error during data seeding: {e}")
@@ -323,9 +344,30 @@ def search(query: str, limit: int):
         if results:
             click.echo(f"📋 Found {len(results)} results:\n")
             for i, result in enumerate(results, 1):
-                click.echo(f"{i}. Device: {result.device_id}")
-                click.echo(f"   Score: {result.score:.3f}")
-                click.echo(f"   Content: {result.content[:100]}...")
+                # Handle both dictionary and object formats
+                if isinstance(result, dict):
+                    device_id = result.get('device_id', 'Unknown')
+                    score = result.get('score', 0.0)
+                    content = result.get('content', '')
+                    metadata = result.get('metadata', {})
+                else:
+                    device_id = result.device_id
+                    score = result.score
+                    content = result.content
+                    metadata = result.metadata
+
+                click.echo(f"{i}. Device: {device_id}")
+                click.echo(f"   Score: {score:.3f}")
+                click.echo(f"   Content: {content[:100]}...")
+
+                # Show metadata if available
+                if metadata:
+                    if metadata.get('device_type'):
+                        click.echo(f"   Type: {metadata['device_type']}")
+                    if metadata.get('manufacturer'):
+                        click.echo(f"   Manufacturer: {metadata['manufacturer']}")
+                    if metadata.get('location'):
+                        click.echo(f"   Location: {metadata['location']}")
                 click.echo()
         else:
             click.echo("❌ No results found")
@@ -344,7 +386,7 @@ def clear_data():
             redis_service = RedisService(settings)
 
             # Clear all keys with our prefixes
-            prefixes = ["device:", "reading:", "energy:", "vector:", "anomaly:"]
+            prefixes = ["device:", "reading:", "energy:", "vector:", "anomaly:", "device_embed:", "doc:"]
             total_deleted = 0
 
             for prefix in prefixes:
@@ -353,6 +395,20 @@ def clear_data():
                     deleted = redis_service.redis_client.delete(*keys)
                     total_deleted += deleted
                     click.echo(f"🗑️ Deleted {deleted} keys with prefix '{prefix}'")
+
+            # Clear vector index
+            try:
+                redis_service.redis_client.ft("device_embeddings").dropindex()
+                click.echo("🗑️ Deleted vector index 'device_embeddings'")
+            except:
+                pass  # Index might not exist
+
+            # Clear embedding index
+            try:
+                redis_service.redis_client.delete("embeddings:index")
+                click.echo("🗑️ Deleted embeddings index")
+            except:
+                pass
 
             click.echo(f"✅ Cleared {total_deleted} total keys from Redis")
 
@@ -378,9 +434,11 @@ def dashboard():
 
         click.echo(f"📂 Dashboard location: {app_path}")
         click.echo("🌐 Dashboard will be available at: http://localhost:8501")
-        click.echo("🔄 The dashboard auto-refreshes every 30 seconds")
+        click.echo("🔄 The dashboard auto-refreshes every 3 minutes")
         click.echo("\n💡 Tip: Start streaming data in another terminal with:")
         click.echo("   uv run python cli.py stream-data --device-count 5 --interval 10")
+        click.echo("\n🔍 Enable semantic search with:")
+        click.echo("   uv run python cli.py generate-embeddings")
 
         # Launch Streamlit
         subprocess.run([
@@ -483,6 +541,135 @@ def list_devices():
     except Exception as e:
         click.echo(f"❌ Error listing devices: {e}")
         raise
+
+@cli.command()
+def create_vector_index():
+    """Create Redis vector index for semantic search."""
+    click.echo("🔧 Creating Redis vector index...")
+
+    try:
+        settings = Settings()
+        redis_service = RedisService(settings)
+
+        success = redis_service.create_vector_index()
+
+        if success:
+            click.echo("✅ Vector index created successfully!")
+            click.echo("📋 Index name: device_embeddings")
+            click.echo("🔍 Vector dimension: 384")
+            click.echo("📐 Distance metric: COSINE")
+        else:
+            click.echo("❌ Failed to create vector index")
+
+    except Exception as e:
+        click.echo(f"❌ Error creating vector index: {e}")
+        raise
+
+@cli.command()
+def generate_embeddings():
+    """Generate embeddings for all devices and store in vector index."""
+    click.echo("🧠 Generating device embeddings...")
+
+    try:
+        settings = Settings()
+        redis_service = RedisService(settings)
+
+        # Create vector index first
+        click.echo("🔧 Ensuring vector index exists...")
+        redis_service.create_vector_index()
+
+        # Generate embeddings
+        click.echo("📊 Processing devices...")
+        success = redis_service.generate_device_embeddings()
+
+        if success:
+            click.echo("✅ Device embeddings generated successfully!")
+            click.echo("🔍 Semantic search is now available")
+            click.echo("\n💡 Try searching with:")
+            click.echo("   uv run python cli.py search 'HVAC system'")
+            click.echo("   uv run python cli.py search 'air conditioning'")
+            click.echo("   uv run python cli.py search 'energy efficient'")
+        else:
+            click.echo("❌ Failed to generate embeddings")
+
+    except Exception as e:
+        click.echo(f"❌ Error generating embeddings: {e}")
+        raise
+
+@cli.command()
+def vector_status():
+    """Check vector index and embedding status."""
+    click.echo("📊 Vector Search Status\n" + "="*50)
+
+    try:
+        settings = Settings()
+        redis_service = RedisService(settings)
+
+        # Check if vector index exists
+        try:
+            index_info = redis_service.redis_client.ft("device_embeddings").info()
+            click.echo("✅ Vector index exists")
+            click.echo(f"📋 Index name: device_embeddings")
+
+            # Extract useful info from index
+            num_docs = index_info.get('num_docs', 0)
+            click.echo(f"📄 Indexed documents: {num_docs}")
+
+        except Exception:
+            click.echo("❌ Vector index does not exist")
+            click.echo("💡 Create it with: uv run python cli.py create-vector-index")
+            return
+
+        # Check embedding count
+        device_embed_keys = redis_service.redis_client.keys("device_embed:*")
+        click.echo(f"🧠 Device embeddings: {len(device_embed_keys)}")
+
+        # Check devices vs embeddings
+        devices = redis_service.get_all_devices()
+        click.echo(f"🏠 Total devices: {len(devices)}")
+
+        missing_embeddings = len(devices) - len(device_embed_keys)
+        if missing_embeddings > 0:
+            click.echo(f"⚠️ Missing embeddings: {missing_embeddings}")
+            click.echo("💡 Generate them with: uv run python cli.py generate-embeddings")
+        else:
+            click.echo("✅ All devices have embeddings")
+
+        click.echo("\n🔍 Ready for semantic search!")
+
+    except Exception as e:
+        click.echo(f"❌ Error checking vector status: {e}")
+        raise
+
+@cli.command()
+def redisinsight():
+    """Launch RedisInsight GUI tool via Docker to manage Redis data."""
+    click.echo("🚀 Starting RedisInsight...")
+    click.echo("📊 RedisInsight is Redis's official GUI tool for data visualization and management")
+
+    import subprocess
+    import os
+
+    try:
+        # Check if Docker is available
+        subprocess.run(["docker", "--version"], capture_output=True, check=True)
+
+        # Run the startup script
+        script_path = os.path.join(os.path.dirname(__file__), 'start-redisinsight.sh')
+
+        if os.path.exists(script_path):
+            subprocess.run(["bash", script_path])
+        else:
+            click.echo("❌ RedisInsight startup script not found")
+            click.echo("💡 Try running manually:")
+            click.echo("   docker-compose -f docker-compose.redisinsight.yml up -d")
+
+    except subprocess.CalledProcessError:
+        click.echo("❌ Docker is not available or not running")
+        click.echo("💡 Please install Docker and ensure it's running")
+        click.echo("   https://docs.docker.com/get-docker/")
+    except Exception as e:
+        click.echo(f"❌ Error launching RedisInsight: {e}")
 
 
 if __name__ == '__main__':
