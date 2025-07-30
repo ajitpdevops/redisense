@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="text-center py-5">
+            <div class="display-1 text-danger mb-4">
+                <i class="bi bi-exclamation-triangle"></i>
+            </div>
+            <h1 class="h2 text-danger mb-3">Oops! Something went wrong</h1>
+            <p class="lead text-muted mb-4">
+                We encountered an error while processing your request.
+            </p>
+
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body">
+                    <h5 class="card-title text-danger">Error Details:</h5>
+                    <pre class="text-start bg-light p-3 rounded"><code>{{ error }}</code></pre>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-center gap-3">
+                <a href="/" class="btn btn-primary">
+                    <i class="bi bi-house"></i> Go to Dashboard
+                </a>
+                <button class="btn btn-outline-secondary" onclick="history.back()">
+                    <i class="bi bi-arrow-left"></i> Go Back
+                </button>
+                <button class="btn btn-outline-primary" onclick="location.reload()">
+                    <i class="bi bi-arrow-clockwise"></i> Try Again
+                </button>
+            </div>
+
+            <div class="mt-5">
+                <h6 class="text-muted">Common Solutions:</h6>
+                <div class="row mt-3">
+                    <div class="col-md-4">
+                        <div class="card border-0 bg-light">
+                            <div class="card-body text-center">
+                                <i class="bi bi-database-check display-6 text-info mb-2"></i>
+                                <h6>Check Redis Connection</h6>
+                                <small class="text-muted">Ensure Redis is running and accessible</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-0 bg-light">
+                            <div class="card-body text-center">
+                                <i class="bi bi-cpu display-6 text-warning mb-2"></i>
+                                <h6>Seed Data</h6>
+                                <small class="text-muted">Add device data if none exists</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-0 bg-light">
+                            <div class="card-body text-center">
+                                <i class="bi bi-vector-pen display-6 text-success mb-2"></i>
+                                <h6>Generate Embeddings</h6>
+                                <small class="text-muted">Create vector embeddings for search</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <p class="text-muted">
+                    <strong>Quick Commands:</strong><br>
+                    <code>uv run python cli.py test-connection</code><br>
+                    <code>uv run python cli.py seed-data --device-count 5</code><br>
+                    <code>uv run python cli.py generate-embeddings</code>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

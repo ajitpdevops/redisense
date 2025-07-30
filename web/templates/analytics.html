@@ -1,0 +1,673 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h2">
+                <i class="bi bi-graph-up text-primary"></i>
+                Energy Analytics
+            </h1>
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-outline-primary" onclick="refreshAnalytics()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+                <button type="button" class="btn btn-outline-success" onclick="exportReport()">
+                    <i class="bi bi-download"></i> Export Report
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Time Series Chart -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-activity"></i> Power Consumption Time Series - All Devices
+                </h5>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-primary" data-duration="5" onclick="updateTimeSeriesChart(5, 'minutes')">5 Min</button>
+                    <button type="button" class="btn btn-outline-primary" data-duration="30" onclick="updateTimeSeriesChart(30, 'minutes')">30 Min</button>
+                    <button type="button" class="btn btn-outline-primary" data-duration="1" onclick="updateTimeSeriesChart(1, 'hours')">1 Hour</button>
+                    <button type="button" class="btn btn-outline-primary" data-duration="4" onclick="updateTimeSeriesChart(4, 'hours')">4 Hours</button>
+                    <button type="button" class="btn btn-outline-primary active" data-duration="24" onclick="updateTimeSeriesChart(24, 'hours')">24 Hours</button>
+                    <button type="button" class="btn btn-outline-primary" data-duration="2" onclick="updateTimeSeriesChart(2, 'days')">2 Days</button>
+                    <button type="button" class="btn btn-outline-primary" data-duration="7" onclick="updateTimeSeriesChart(7, 'days')">7 Days</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="timeSeriesLoading" class="text-center py-4" style="display: none;">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">Loading chart data...</p>
+                </div>
+                <canvas id="timeSeriesChart" width="400" height="120"></canvas>
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="showAllDevices" checked onchange="toggleDeviceVisibility()">
+                            <label class="form-check-label" for="showAllDevices">
+                                Show all devices
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <small class="text-muted">
+                            <span id="chartDataPoints">0</span> data points loaded
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Device Selection Panel -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-toggles"></i> Device Selection
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="deviceCheckboxes" class="row">
+                    <!-- Device checkboxes will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Analytics Overview -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-clock"></i> Hourly Power Consumption
+                </h5>
+            </div>
+            <div class="card-body">
+                <canvas id="hourlyChart" width="400" height="150"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-pie-chart"></i> Top Consumers
+                </h5>
+            </div>
+            <div class="card-body">
+                <canvas id="topConsumersChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Device Insights -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-cpu"></i> Device Performance Overview
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if devices %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Device</th>
+                                <th>Type</th>
+                                <th>Location</th>
+                                <th>Status</th>
+                                <th>Current Power</th>
+                                <th>24h Energy</th>
+                                <th>Efficiency</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for device in devices[:10] %}
+                            <tr>
+                                <td>
+                                    <strong>{{ device.name or device.device_id }}</strong><br>
+                                    <small class="text-muted">{{ device.device_id }}</small>
+                                </td>
+                                <td><span class="badge bg-primary">{{ device.device_type.value }}</span></td>
+                                <td>
+                                    <i class="bi bi-geo-alt"></i> {{ device.location or 'Unknown' }}
+                                </td>
+                                <td>
+                                    {% if device.status.value == 'normal' %}
+                                        <span class="badge bg-success">Normal</span>
+                                    {% elif device.status.value == 'maintenance' %}
+                                        <span class="badge bg-warning">Maintenance</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Anomaly</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="text-warning fw-bold">{{ "%.2f"|format((device.power_rating or 1000) / 1000 * 0.7) }} kW</span>
+                                </td>
+                                <td>
+                                    <span class="text-info fw-bold">{{ "%.2f"|format((device.power_rating or 1000) / 1000 * 16.8) }} kWh</span>
+                                </td>
+                                <td>
+                                    {% set efficiency = range(75, 95) | random %}
+                                    <div class="d-flex align-items-center">
+                                        <div class="progress me-2" style="width: 60px; height: 8px;">
+                                            <div class="progress-bar bg-{{ 'success' if efficiency > 85 else 'warning' if efficiency > 75 else 'danger' }}"
+                                                 style="width: {{ efficiency }}%"></div>
+                                        </div>
+                                        <small class="text-muted">{{ efficiency }}%</small>
+                                    </div>
+                                </td>
+                                <td>
+                                    <a href="/device/{{ device.device_id }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <div class="text-muted">
+                        <i class="bi bi-cpu display-4"></i>
+                        <h5 class="mt-3">No devices found</h5>
+                        <p>Start by seeding device data to see analytics.</p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Energy Insights -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-lightning"></i> Energy Insights
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6 text-center mb-3">
+                        <div class="display-6 text-success mb-2">
+                            <i class="bi bi-arrow-down-circle"></i>
+                        </div>
+                        <h5 class="text-success">12%</h5>
+                        <p class="text-muted small mb-0">Energy Savings</p>
+                        <small class="text-muted">vs last month</small>
+                    </div>
+                    <div class="col-6 text-center mb-3">
+                        <div class="display-6 text-warning mb-2">
+                            <i class="bi bi-graph-up-arrow"></i>
+                        </div>
+                        <h5 class="text-warning">7%</h5>
+                        <p class="text-muted small mb-0">Peak Load</p>
+                        <small class="text-muted">increase this week</small>
+                    </div>
+                </div>
+
+                <hr>
+
+                <div class="row">
+                    <div class="col-12">
+                        <h6 class="text-primary">Recommendations:</h6>
+                        <ul class="list-unstyled">
+                            <li class="mb-2">
+                                <i class="bi bi-lightbulb text-warning"></i>
+                                <span class="ms-2">Consider upgrading to LED lighting systems</span>
+                            </li>
+                            <li class="mb-2">
+                                <i class="bi bi-thermometer-half text-info"></i>
+                                <span class="ms-2">Optimize HVAC scheduling during peak hours</span>
+                            </li>
+                            <li class="mb-2">
+                                <i class="bi bi-cpu text-success"></i>
+                                <span class="ms-2">Enable power management on server equipment</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-exclamation-triangle"></i> Alerts & Anomalies
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning d-flex align-items-center" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <div>
+                        <strong>High Power Usage Detected</strong><br>
+                        <small>Server Room HVAC - Power consumption 15% above normal</small>
+                    </div>
+                </div>
+
+                <div class="alert alert-info d-flex align-items-center" role="alert">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    <div>
+                        <strong>Maintenance Reminder</strong><br>
+                        <small>Lighting System B requires scheduled maintenance</small>
+                    </div>
+                </div>
+
+                <div class="alert alert-success d-flex align-items-center" role="alert">
+                    <i class="bi bi-check-circle-fill me-2"></i>
+                    <div>
+                        <strong>Efficiency Improvement</strong><br>
+                        <small>Office HVAC system operating 8% more efficiently</small>
+                    </div>
+                </div>
+
+                <div class="text-center mt-3">
+                    <a href="#" class="btn btn-outline-primary btn-sm">
+                        View All Alerts <i class="bi bi-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cost Analysis -->
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-currency-dollar"></i> Cost Analysis
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 text-center">
+                        <h4 class="text-success">$2,847</h4>
+                        <p class="text-muted mb-0">This Month</p>
+                        <small class="text-success">
+                            <i class="bi bi-arrow-down"></i> 12% vs last month
+                        </small>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <h4 class="text-info">$34,164</h4>
+                        <p class="text-muted mb-0">This Year</p>
+                        <small class="text-info">
+                            <i class="bi bi-arrow-up"></i> 3% vs last year
+                        </small>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <h4 class="text-warning">$0.142</h4>
+                        <p class="text-muted mb-0">Avg Cost/kWh</p>
+                        <small class="text-muted">Current rate</small>
+                    </div>
+                    <div class="col-md-3 text-center">
+                        <h4 class="text-primary">$3,200</h4>
+                        <p class="text-muted mb-0">Projected Next Month</p>
+                        <small class="text-primary">Based on trends</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let hourlyChart;
+let topConsumersChart;
+let timeSeriesChart;
+let allDevicesData = {};
+let selectedDevices = new Set();
+
+function initializeAnalyticsCharts() {
+    // Initialize time series chart first
+    initializeTimeSeriesChart();
+
+    // Hourly consumption chart
+    const hourlyCtx = document.getElementById('hourlyChart').getContext('2d');
+    hourlyChart = new Chart(hourlyCtx, {
+        type: 'line',
+        data: {
+            labels: {{ analytics.hourly | map(attribute='hour') | list | tojson }},
+            datasets: [{
+                label: 'Power Consumption (kW)',
+                data: {{ analytics.hourly | map(attribute='power') | list | tojson }},
+                borderColor: '#0d6efd',
+                backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            interaction: {
+                intersect: false,
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Power (kW)'
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Hour of Day'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+
+    // Top consumers chart
+    const topConsumersCtx = document.getElementById('topConsumersChart').getContext('2d');
+    topConsumersChart = new Chart(topConsumersCtx, {
+        type: 'doughnut',
+        data: {
+            labels: {{ analytics.device_consumption | map(attribute='device') | list | tojson }},
+            datasets: [{
+                data: {{ analytics.device_consumption | map(attribute='consumption') | list | tojson }},
+                backgroundColor: [
+                    '#0d6efd', '#198754', '#ffc107', '#dc3545', '#6f42c1',
+                    '#fd7e14', '#20c997', '#6c757d', '#e83e8c', '#17a2b8'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        generateLabels: function(chart) {
+                            const data = chart.data;
+                            if (data.labels.length && data.datasets.length) {
+                                return data.labels.map((label, i) => {
+                                    const value = data.datasets[0].data[i];
+                                    const shortLabel = label.length > 12 ? label.substring(0, 12) + '...' : label;
+                                    return {
+                                        text: `${shortLabel} (${value.toFixed(1)} kWh)`,
+                                        fillStyle: data.datasets[0].backgroundColor[i],
+                                        strokeStyle: data.datasets[0].backgroundColor[i],
+                                        lineWidth: 0,
+                                        index: i
+                                    };
+                                });
+                            }
+                            return [];
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function initializeTimeSeriesChart() {
+    const ctx = document.getElementById('timeSeriesChart').getContext('2d');
+    timeSeriesChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: []
+        },
+        options: {
+            responsive: true,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        displayFormats: {
+                            minute: 'HH:mm',
+                            hour: 'HH:mm',
+                            day: 'MMM DD'
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Time'
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Power (kW)'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        usePointStyle: true,
+                        maxHeight: 60
+                    }
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        title: function(context) {
+                            return new Date(context[0].parsed.x).toLocaleString();
+                        },
+                        label: function(context) {
+                            return `${context.dataset.label}: ${context.parsed.y.toFixed(2)} kW`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Load initial data (24 hours by default)
+    updateTimeSeriesChart(24, 'hours');
+}
+
+function updateTimeSeriesChart(duration, unit) {
+    const loadingDiv = document.getElementById('timeSeriesLoading');
+    loadingDiv.style.display = 'block';
+
+    // Update active button
+    document.querySelectorAll('.btn-group .btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+
+    // Convert duration to hours for API
+    let hours;
+    switch(unit) {
+        case 'minutes':
+            hours = duration / 60;
+            break;
+        case 'hours':
+            hours = duration;
+            break;
+        case 'days':
+            hours = duration * 24;
+            break;
+        default:
+            hours = 24;
+    }
+
+    console.log(`Loading time series data for ${duration} ${unit} (${hours} hours)`);
+
+    fetch(`/api/analytics/time-series?hours=${hours}`)
+        .then(response => response.json())
+        .then(data => {
+            loadingDiv.style.display = 'none';
+
+            if (data.error) {
+                console.error('Error loading time series data:', data.error);
+                return;
+            }
+
+            console.log('Received time series data:', data);
+            allDevicesData = data;
+
+            // Create device checkboxes
+            createDeviceCheckboxes(Object.keys(data));
+
+            // Update chart
+            updateChartDisplay();
+
+            // Update data points counter
+            const totalPoints = Object.values(data).reduce((sum, device) => sum + device.length, 0);
+            document.getElementById('chartDataPoints').textContent = totalPoints;
+        })
+        .catch(error => {
+            loadingDiv.style.display = 'none';
+            console.error('Error fetching time series data:', error);
+        });
+}
+
+function createDeviceCheckboxes(deviceIds) {
+    const container = document.getElementById('deviceCheckboxes');
+    container.innerHTML = '';
+
+    // Clear selected devices and select all by default
+    selectedDevices.clear();
+
+    deviceIds.forEach((deviceId, index) => {
+        selectedDevices.add(deviceId);
+
+        const colDiv = document.createElement('div');
+        colDiv.className = 'col-md-3 col-sm-4 col-6 mb-2';
+
+        const checkDiv = document.createElement('div');
+        checkDiv.className = 'form-check';
+
+        const checkbox = document.createElement('input');
+        checkbox.className = 'form-check-input';
+        checkbox.type = 'checkbox';
+        checkbox.id = `device_${deviceId}`;
+        checkbox.checked = true;
+        checkbox.onchange = () => toggleDevice(deviceId);
+
+        const label = document.createElement('label');
+        label.className = 'form-check-label';
+        label.htmlFor = `device_${deviceId}`;
+        label.textContent = deviceId;
+
+        checkDiv.appendChild(checkbox);
+        checkDiv.appendChild(label);
+        colDiv.appendChild(checkDiv);
+        container.appendChild(colDiv);
+    });
+}
+
+function toggleDevice(deviceId) {
+    if (selectedDevices.has(deviceId)) {
+        selectedDevices.delete(deviceId);
+    } else {
+        selectedDevices.add(deviceId);
+    }
+    updateChartDisplay();
+}
+
+function toggleDeviceVisibility() {
+    const showAll = document.getElementById('showAllDevices').checked;
+    const checkboxes = document.querySelectorAll('#deviceCheckboxes input[type="checkbox"]');
+
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = showAll;
+        const deviceId = checkbox.id.replace('device_', '');
+        if (showAll) {
+            selectedDevices.add(deviceId);
+        } else {
+            selectedDevices.delete(deviceId);
+        }
+    });
+
+    updateChartDisplay();
+}
+
+function updateChartDisplay() {
+    const datasets = [];
+    const colors = [
+        '#0d6efd', '#198754', '#ffc107', '#dc3545', '#6f42c1',
+        '#fd7e14', '#20c997', '#6c757d', '#e83e8c', '#17a2b8',
+        '#495057', '#007bff', '#28a745', '#ffc107', '#dc3545'
+    ];
+
+    let colorIndex = 0;
+    selectedDevices.forEach(deviceId => {
+        if (allDevicesData[deviceId]) {
+            const deviceData = allDevicesData[deviceId];
+            datasets.push({
+                label: deviceId,
+                data: deviceData.map(reading => ({
+                    x: new Date(reading.timestamp),
+                    y: reading.power_kw
+                })),
+                borderColor: colors[colorIndex % colors.length],
+                backgroundColor: colors[colorIndex % colors.length] + '20',
+                tension: 0.1,
+                pointRadius: 1,
+                pointHoverRadius: 4,
+                fill: false
+            });
+            colorIndex++;
+        }
+    });
+
+    timeSeriesChart.data.datasets = datasets;
+    timeSeriesChart.update();
+}
+
+function refreshAnalytics() {
+    location.reload();
+}
+
+function exportReport() {
+    alert('Analytics report export functionality would be implemented here. This would generate a comprehensive PDF or Excel report.');
+}
+
+// Initialize charts when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    initializeAnalyticsCharts();
+
+    // Add hover effects to cards
+    document.querySelectorAll('.card').forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-2px)';
+        });
+        card.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+        });
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,451 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h2">
+                <i class="bi bi-gear-fill text-primary"></i> Admin Panel
+            </h1>
+            <div class="btn-group" role="group">
+                <a href="/" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- System Status -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-activity"></i> System Status
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="display-6 mb-2 {% if status.redis %}text-success{% else %}text-danger{% endif %}">
+                                <i class="bi bi-database{% if not status.redis %}-x{% endif %}"></i>
+                            </div>
+                            <h6>Redis Service</h6>
+                            <span class="badge bg-{% if status.redis %}success{% else %}danger{% endif %}">
+                                {% if status.redis %}Online{% else %}Offline{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="display-6 mb-2 {% if status.ai %}text-success{% else %}text-warning{% endif %}">
+                                <i class="bi bi-cpu{% if not status.ai %}-fill{% endif %}"></i>
+                            </div>
+                            <h6>AI Service</h6>
+                            <span class="badge bg-{% if status.ai %}success{% else %}warning{% endif %}">
+                                {% if status.ai %}Online{% else %}Offline{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="display-6 text-info mb-2">
+                                <i class="bi bi-hdd"></i>
+                            </div>
+                            <h6>Total Devices</h6>
+                            <h4 class="text-info">{{ status.devices_count }}</h4>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="display-6 text-primary mb-2">
+                                <i class="bi bi-graph-up"></i>
+                            </div>
+                            <h6>Total Readings</h6>
+                            <h4 class="text-primary">{{ status.readings_count }}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Data Management -->
+<div class="row mb-4">
+    <!-- Seed Historical Data -->
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-clock-history text-info"></i> Seed Historical Data
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">Generate historical energy readings for testing and analysis.</p>
+
+                <form id="seedDataForm">
+                    <div class="mb-3">
+                        <label for="seedDays" class="form-label">Days to Generate</label>
+                        <select class="form-select" id="seedDays" name="days">
+                            <option value="1">1 Day</option>
+                            <option value="3">3 Days</option>
+                            <option value="7" selected>7 Days</option>
+                            <option value="14">14 Days</option>
+                            <option value="30">30 Days</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="seedInterval" class="form-label">Reading Interval</label>
+                        <select class="form-select" id="seedInterval" name="interval">
+                            <option value="5">5 Minutes</option>
+                            <option value="15" selected>15 Minutes</option>
+                            <option value="30">30 Minutes</option>
+                            <option value="60">1 Hour</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn btn-info w-100">
+                        <i class="bi bi-download"></i> Seed Data
+                    </button>
+                </form>
+
+                <div id="seedProgress" class="mt-3" style="display: none;">
+                    <div class="progress">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <small class="text-muted mt-1">Seeding data...</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stream Real-time Data -->
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-broadcast text-success"></i> Stream Real-time Data
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">Start or stop real-time data streaming for all devices.</p>
+
+                <div class="mb-3">
+                    <label for="streamInterval" class="form-label">Stream Interval</label>
+                    <select class="form-select" id="streamInterval">
+                        <option value="5">5 Seconds</option>
+                        <option value="10" selected>10 Seconds</option>
+                        <option value="30">30 Seconds</option>
+                        <option value="60">1 Minute</option>
+                    </select>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button id="startStreamBtn" class="btn btn-success" onclick="startStreaming()">
+                        <i class="bi bi-play-fill"></i> Start Streaming
+                    </button>
+                    <button id="stopStreamBtn" class="btn btn-danger" onclick="stopStreaming()" style="display: none;">
+                        <i class="bi bi-stop-fill"></i> Stop Streaming
+                    </button>
+                </div>
+
+                <div id="streamStatus" class="mt-3" style="display: none;">
+                    <div class="alert alert-success alert-sm">
+                        <i class="bi bi-broadcast"></i> Streaming active
+                        <div class="mt-1">
+                            <small>Readings generated: <span id="streamCounter">0</span></small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Clear Data -->
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-trash text-danger"></i> Clear Data
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">Remove data from the system. <strong>This action cannot be undone!</strong></p>
+
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-warning" onclick="confirmClearReadings()">
+                        <i class="bi bi-graph-down"></i> Clear Readings Only
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="confirmClearAll()">
+                        <i class="bi bi-trash-fill"></i> Clear All Data
+                    </button>
+                </div>
+
+                <div class="mt-3">
+                    <small class="text-muted">
+                        <strong>Clear Readings:</strong> Removes energy readings but keeps devices<br>
+                        <strong>Clear All:</strong> Removes devices and all readings
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity Log -->
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-journal-text"></i> Recent Activity
+                </h5>
+                <button class="btn btn-outline-primary btn-sm" onclick="refreshActivity()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="activityLog">
+                    <div class="text-center text-muted py-3">
+                        <i class="bi bi-journal"></i>
+                        <p class="mt-2 mb-0">No recent activity</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modals -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="confirmMessage">Are you sure you want to proceed?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmBtn">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let streamingInterval = null;
+let streamCounter = 0;
+
+// Seed historical data
+document.getElementById('seedDataForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const days = document.getElementById('seedDays').value;
+    const interval = document.getElementById('seedInterval').value;
+    const progressDiv = document.getElementById('seedProgress');
+    const progressBar = progressDiv.querySelector('.progress-bar');
+
+    progressDiv.style.display = 'block';
+    progressBar.style.width = '0%';
+
+    fetch('/admin/api/seed-data', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            days: parseInt(days),
+            interval_minutes: parseInt(interval)
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            progressBar.style.width = '100%';
+            progressBar.classList.remove('progress-bar-animated');
+            setTimeout(() => {
+                progressDiv.style.display = 'none';
+                progressBar.classList.add('progress-bar-animated');
+                showAlert('success', `Successfully seeded ${data.readings_created} readings for ${data.days} days`);
+                refreshActivity();
+            }, 1000);
+        } else {
+            progressDiv.style.display = 'none';
+            showAlert('danger', `Error: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        progressDiv.style.display = 'none';
+        showAlert('danger', `Error: ${error.message}`);
+    });
+});
+
+// Start streaming
+function startStreaming() {
+    const interval = parseInt(document.getElementById('streamInterval').value) * 1000;
+    const startBtn = document.getElementById('startStreamBtn');
+    const stopBtn = document.getElementById('stopStreamBtn');
+    const statusDiv = document.getElementById('streamStatus');
+
+    streamCounter = 0;
+    document.getElementById('streamCounter').textContent = '0';
+
+    startBtn.style.display = 'none';
+    stopBtn.style.display = 'block';
+    statusDiv.style.display = 'block';
+
+    streamingInterval = setInterval(() => {
+        fetch('/admin/api/stream-data', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                streamCounter += data.readings_created;
+                document.getElementById('streamCounter').textContent = streamCounter;
+            }
+        })
+        .catch(error => {
+            console.error('Streaming error:', error);
+        });
+    }, interval);
+
+    addActivity('Started real-time data streaming');
+}
+
+// Stop streaming
+function stopStreaming() {
+    if (streamingInterval) {
+        clearInterval(streamingInterval);
+        streamingInterval = null;
+    }
+
+    const startBtn = document.getElementById('startStreamBtn');
+    const stopBtn = document.getElementById('stopStreamBtn');
+    const statusDiv = document.getElementById('streamStatus');
+
+    startBtn.style.display = 'block';
+    stopBtn.style.display = 'none';
+    statusDiv.style.display = 'none';
+
+    addActivity(`Stopped streaming after generating ${streamCounter} readings`);
+}
+
+// Confirm clear readings
+function confirmClearReadings() {
+    showConfirmModal(
+        'Clear all energy readings? This will remove all historical data but keep devices.',
+        () => clearData('readings')
+    );
+}
+
+// Confirm clear all
+function confirmClearAll() {
+    showConfirmModal(
+        'Clear ALL data including devices and readings? This cannot be undone!',
+        () => clearData('all')
+    );
+}
+
+// Clear data
+function clearData(type) {
+    fetch('/admin/api/clear-data', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ type: type })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('success', data.message);
+            refreshActivity();
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showAlert('danger', `Error: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        showAlert('danger', `Error: ${error.message}`);
+    });
+}
+
+// Show confirmation modal
+function showConfirmModal(message, onConfirm) {
+    document.getElementById('confirmMessage').textContent = message;
+    const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+
+    document.getElementById('confirmBtn').onclick = () => {
+        modal.hide();
+        onConfirm();
+    };
+
+    modal.show();
+}
+
+// Show alert
+function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+
+    document.querySelector('.container-fluid').insertBefore(alertDiv, document.querySelector('.row'));
+
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+
+// Add activity log entry
+function addActivity(message) {
+    const logDiv = document.getElementById('activityLog');
+    const timestamp = new Date().toLocaleString();
+
+    const entry = document.createElement('div');
+    entry.className = 'border-bottom pb-2 mb-2';
+    entry.innerHTML = `
+        <div class="d-flex justify-content-between">
+            <span><i class="bi bi-dot text-primary"></i> ${message}</span>
+            <small class="text-muted">${timestamp}</small>
+        </div>
+    `;
+
+    if (logDiv.querySelector('.text-center')) {
+        logDiv.innerHTML = '';
+    }
+
+    logDiv.insertBefore(entry, logDiv.firstChild);
+
+    // Keep only last 10 entries
+    const entries = logDiv.children;
+    if (entries.length > 10) {
+        for (let i = 10; i < entries.length; i++) {
+            entries[i].remove();
+        }
+    }
+}
+
+// Refresh activity
+function refreshActivity() {
+    addActivity('Refreshed admin panel');
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    addActivity('Admin panel loaded');
+});
+</script>
+{% endblock %}

@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Header Section -->
+<div class="row mb-4" x-data="{
+    autoRefresh: false,
+    lastUpdate: new Date().toLocaleTimeString(),
+    refreshing: false
+}">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="h2 mb-2">
+                    <i class="bi bi-lightning-charge-fill text-primary"></i>
+                    Energy Monitoring Dashboard
+                </h1>
+                <p class="text-muted mb-0">Real-time monitoring of your energy infrastructure</p>
+            </div>
+            <div class="btn-group" role="group">
+                <button type="button"
+                        class="btn btn-outline-primary"
+                        @click="refreshDashboard(); refreshing = true; setTimeout(() => refreshing = false, 1000)"
+                        :disabled="refreshing">
+                    <i class="bi" :class="refreshing ? 'bi-arrow-clockwise spin' : 'bi-arrow-clockwise'"></i>
+                    <span x-text="refreshing ? 'Refreshing...' : 'Refresh'"></span>
+                </button>
+                <button type="button"
+                        class="btn"
+                        :class="autoRefresh ? 'btn-success' : 'btn-outline-success'"
+                        @click="toggleAutoRefresh(); autoRefresh = !autoRefresh">
+                    <i class="bi" :class="autoRefresh ? 'bi-pause-fill' : 'bi-play-fill'"></i>
+                    <span x-text="autoRefresh ? 'Auto-refresh ON' : 'Auto-refresh OFF'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Metrics Cards -->
+<div class="row mb-4 g-3">
+    <div class="col-lg-3 col-md-6">
+        <div class="card metric-card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <div class="metric-icon mb-3">
+                    <i class="bi bi-cpu-fill display-4 text-primary"></i>
+                </div>
+                <h5 class="card-title text-muted">Total Devices</h5>
+                <h2 class="text-primary mb-0 counter" data-target="{{ total_devices }}">{{ total_devices }}</h2>
+                <small class="text-success">
+                    <i class="bi bi-arrow-up"></i> All systems operational
+                </small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6">
+        <div class="card metric-card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <div class="metric-icon mb-3">
+                    <i class="bi bi-lightning-fill display-4 text-warning"></i>
+                </div>
+                <h5 class="card-title text-muted">Current Power</h5>
+                <h2 class="text-warning mb-0 counter" data-target="{{ metrics.current_power }}" data-suffix=" kW">{{ metrics.current_power }} kW</h2>
+                <small class="text-info">
+                    <i class="bi bi-activity"></i> Real-time
+                </small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6">
+        <div class="card metric-card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <div class="metric-icon mb-3">
+                    <i class="bi bi-bar-chart-fill display-4 text-info"></i>
+                </div>
+                <h5 class="card-title text-muted">Avg Consumption</h5>
+                <h2 class="text-info mb-0 counter" data-target="{{ metrics.avg_consumption }}" data-suffix=" kW">{{ metrics.avg_consumption }} kW</h2>
+                <small class="text-muted">
+                    <i class="bi bi-clock"></i> 24h average
+                </small>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 col-md-6">
+        <div class="card metric-card border-0 shadow-sm h-100">
+            <div class="card-body text-center">
+                <div class="metric-icon mb-3">
+                    <i class="bi bi-graph-up display-4 text-success"></i>
+                </div>
+                <h5 class="card-title text-muted">24h Energy</h5>
+                <h2 class="text-success mb-0 counter" data-target="{{ metrics.total_energy_24h }}" data-suffix=" kWh">{{ metrics.total_energy_24h }} kWh</h2>
+                <small class="text-success">
+                    <i class="bi bi-arrow-up"></i> +12% from yesterday
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Status Overview -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-activity"></i> System Status
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 text-center">
+                        <div class="text-success display-6 mb-2">
+                            <i class="bi bi-check-circle-fill"></i>
+                        </div>
+                        <h4 class="text-success" id="active-devices">{{ metrics.active_devices }}</h4>
+                        <p class="text-muted mb-0">Active Devices</p>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <div class="text-danger display-6 mb-2">
+                            <i class="bi bi-x-circle-fill"></i>
+                        </div>
+                        <h4 class="text-danger" id="offline-devices">{{ metrics.offline_devices }}</h4>
+                        <p class="text-muted mb-0">Offline Devices</p>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <div class="text-primary display-6 mb-2">
+                            <i class="bi bi-graph-up-arrow"></i>
+                        </div>
+                        <h4 class="text-primary">Real-time</h4>
+                        <p class="text-muted mb-0">Monitoring</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-speedometer2"></i> Quick Actions
+                </h5>
+            </div>
+            <div class="card-body d-flex flex-column">
+                <div class="d-grid gap-2">
+                    <a href="/devices" class="btn btn-primary">
+                        <i class="bi bi-cpu"></i> Manage Devices
+                    </a>
+                    <a href="/analytics" class="btn btn-info">
+                        <i class="bi bi-graph-up"></i> View Analytics
+                    </a>
+                    <a href="/search" class="btn btn-success">
+                        <i class="bi bi-search"></i> Search Devices
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Devices -->
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-cpu-fill"></i> Recent Devices
+                </h5>
+                <a href="/devices" class="btn btn-outline-primary btn-sm">
+                    View All <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+            <div class="card-body">
+                {% if devices %}
+                <div class="row">
+                    {% for device in devices %}
+                    <div class="col-md-6 col-lg-4 col-xl-3 mb-3">
+                        <div class="card device-card border-0 shadow-sm h-100">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="card-title mb-0">
+                                        {% if device.status.value == 'normal' %}
+                                            <i class="bi bi-circle-fill text-success"></i>
+                                        {% elif device.status.value == 'maintenance' %}
+                                            <i class="bi bi-circle-fill text-warning"></i>
+                                        {% else %}
+                                            <i class="bi bi-circle-fill text-danger"></i>
+                                        {% endif %}
+                                        {{ device.name or device.device_id }}
+                                    </h6>
+                                    <span class="badge bg-light text-dark">{{ device.device_type.value }}</span>
+                                </div>
+
+                                <p class="text-muted small mb-2">
+                                    <i class="bi bi-geo-alt"></i> {{ device.location or 'Unknown' }}
+                                </p>
+
+                                <div class="row text-center">
+                                    <div class="col-6">
+                                        <small class="text-muted">Power</small>
+                                        <div class="fw-bold">{{ "%.2f"|format(device.power_rating / 1000 if device.power_rating else 0) }} kW</div>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-muted">Status</small>
+                                        <div class="fw-bold text-capitalize">{{ device.status.value }}</div>
+                                    </div>
+                                </div>
+
+                                <div class="mt-3">
+                                    <a href="/device/{{ device.device_id }}" class="btn btn-outline-primary btn-sm w-100">
+                                        <i class="bi bi-eye"></i> View Details
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <div class="text-muted">
+                        <i class="bi bi-cpu display-4"></i>
+                        <h5 class="mt-3">No devices found</h5>
+                        <p>Start by seeding some device data:</p>
+                        <code>uv run python cli.py seed-data --device-count 5 --days 2</code>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Auto-refresh functionality
+let autoRefreshInterval;
+let autoRefreshEnabled = false;
+
+function toggleAutoRefresh() {
+    const icon = document.getElementById('auto-refresh-icon');
+
+    if (autoRefreshEnabled) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshEnabled = false;
+        icon.className = 'bi bi-play-fill';
+    } else {
+        autoRefreshInterval = setInterval(refreshMetrics, 30000); // 30 seconds
+        autoRefreshEnabled = true;
+        icon.className = 'bi bi-pause-fill';
+    }
+}
+
+function refreshDashboard() {
+    location.reload();
+}
+
+function refreshMetrics() {
+    fetch('/api/metrics')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('total-devices').textContent = data.total_devices;
+            document.getElementById('current-power').textContent = data.current_power + ' kW';
+            document.getElementById('avg-consumption').textContent = data.avg_consumption + ' kW';
+            document.getElementById('total-energy').textContent = data.total_energy_24h + ' kWh';
+            document.getElementById('active-devices').textContent = data.active_devices;
+            document.getElementById('offline-devices').textContent = data.offline_devices;
+
+            updateTimestamp();
+        })
+        .catch(error => {
+            console.error('Error refreshing metrics:', error);
+        });
+}
+
+function updateTimestamp() {
+    const now = new Date();
+    document.getElementById('timestamp').textContent = now.toLocaleTimeString();
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    updateTimestamp();
+
+    // Add hover effects to metric cards
+    document.querySelectorAll('.metric-card').forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-5px)';
+        });
+        card.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+        });
+    });
+});
+</script>
+{% endblock %}

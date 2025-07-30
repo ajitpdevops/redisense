@@ -528,5 +528,96 @@ class RedisService:
             logger.error(f"Error generating device embeddings: {e}")
             return False
 
+    def clear_energy_readings(self, device_id: Optional[str] = None) -> int:
+        """Clear energy readings for a specific device or all devices"""
+        try:
+            if device_id:
+                # Clear readings for specific device
+                reading_key = f"readings:{device_id}"
+                keys_deleted = self.redis_client.delete(reading_key)
+                logger.info(f"Cleared {keys_deleted} reading sets for device {device_id}")
+                return keys_deleted
+            else:
+                # Clear all energy readings
+                reading_pattern = "readings:*"
+                keys = self.redis_client.keys(reading_pattern)
+                if keys:
+                    keys_deleted = self.redis_client.delete(*keys)
+                    logger.info(f"Cleared {keys_deleted} reading sets")
+                    return keys_deleted
+                return 0
+        except Exception as e:
+            logger.error(f"Error clearing energy readings: {e}")
+            return 0
+
+    def clear_all_devices(self) -> int:
+        """Clear all device data"""
+        try:
+            device_pattern = "device:*"
+            keys = self.redis_client.keys(device_pattern)
+            if keys:
+                keys_deleted = self.redis_client.delete(*keys)
+                logger.info(f"Cleared {keys_deleted} devices")
+                return keys_deleted
+            return 0
+        except Exception as e:
+            logger.error(f"Error clearing devices: {e}")
+            return 0
+
+    def clear_all_data(self) -> Dict[str, int]:
+        """Clear all data from Redis"""
+        try:
+            # Get counts before clearing
+            device_keys = self.redis_client.keys("device:*")
+            reading_keys = self.redis_client.keys("readings:*")
+            vector_keys = self.redis_client.keys("vector:*")
+
+            all_keys = device_keys + reading_keys + vector_keys
+
+            if all_keys:
+                keys_deleted = self.redis_client.delete(*all_keys)
+                logger.info(f"Cleared all data: {keys_deleted} keys deleted")
+                return {
+                    "devices": len(device_keys),
+                    "readings": len(reading_keys),
+                    "vectors": len(vector_keys),
+                    "total": keys_deleted
+                }
+            return {"devices": 0, "readings": 0, "vectors": 0, "total": 0}
+        except Exception as e:
+            logger.error(f"Error clearing all data: {e}")
+            return {"devices": 0, "readings": 0, "vectors": 0, "total": 0}
+
+    def get_data_statistics(self) -> Dict[str, int]:
+        """Get statistics about data in Redis"""
+        try:
+            device_count = len(self.redis_client.keys("device:*"))
+            reading_count = len(self.redis_client.keys("readings:*"))
+            vector_count = len(self.redis_client.keys("vector:*"))
+
+            # Estimate total readings by sampling
+            total_readings = 0
+            sample_keys = self.redis_client.keys("readings:*")[:5]  # Sample first 5
+            for key in sample_keys:
+                readings = self.redis_client.llen(key)
+                total_readings += readings
+
+            # Extrapolate based on sample
+            if sample_keys and reading_count > 0:
+                avg_readings_per_device = total_readings / len(sample_keys)
+                estimated_total_readings = int(avg_readings_per_device * reading_count)
+            else:
+                estimated_total_readings = 0
+
+            return {
+                "devices": device_count,
+                "reading_keys": reading_count,
+                "estimated_total_readings": estimated_total_readings,
+                "vectors": vector_count
+            }
+        except Exception as e:
+            logger.error(f"Error getting data statistics: {e}")
+            return {"devices": 0, "reading_keys": 0, "estimated_total_readings": 0, "vectors": 0}
+
 # Global Redis service instance
 redis_service = RedisService()

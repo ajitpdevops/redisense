@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h2">
+                <i class="bi bi-search text-primary"></i>
+                Semantic Device Search
+            </h1>
+            <div class="text-muted">
+                <i class="bi bi-cpu"></i> Powered by Redis 8 Vector Search + AI
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Search Interface -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <form action="/search" method="get" id="searchForm">
+                    <div class="row">
+                        <div class="col-md-10">
+                            <div class="input-group input-group-lg">
+                                <span class="input-group-text">
+                                    <i class="bi bi-search"></i>
+                                </span>
+                                <input type="text" class="form-control" name="q" id="searchInput"
+                                       placeholder="Search devices using natural language..."
+                                       value="{{ query }}" autofocus>
+                            </div>
+                            <div class="form-text">
+                                Try: "HVAC system", "energy efficient lighting", "server cooling", "warehouse heating"
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary btn-lg w-100">
+                                <i class="bi bi-search"></i> Search
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Example Searches -->
+{% if not query %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-lightbulb"></i> Try These Example Searches
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-2">
+                        <button type="button" class="btn btn-outline-primary w-100" onclick="searchExample('HVAC system')">
+                            <i class="bi bi-thermometer-half"></i> HVAC System
+                        </button>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <button type="button" class="btn btn-outline-info w-100" onclick="searchExample('energy efficient lighting')">
+                            <i class="bi bi-lightbulb"></i> Energy Efficient
+                        </button>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <button type="button" class="btn btn-outline-success w-100" onclick="searchExample('server cooling')">
+                            <i class="bi bi-cpu"></i> Server Cooling
+                        </button>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <button type="button" class="btn btn-outline-warning w-100" onclick="searchExample('warehouse heating')">
+                            <i class="bi bi-building"></i> Warehouse Heating
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- How It Works -->
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-gear"></i> How Semantic Search Works
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 text-center mb-4">
+                        <div class="display-6 text-primary mb-3">
+                            <i class="bi bi-brain"></i>
+                        </div>
+                        <h5>AI Understanding</h5>
+                        <p class="text-muted">Our AI understands the meaning and context of your search terms, not just exact matches.</p>
+                    </div>
+                    <div class="col-md-4 text-center mb-4">
+                        <div class="display-6 text-success mb-3">
+                            <i class="bi bi-vector-pen"></i>
+                        </div>
+                        <h5>Vector Embeddings</h5>
+                        <p class="text-muted">Device information is converted into high-dimensional vectors for similarity comparison.</p>
+                    </div>
+                    <div class="col-md-4 text-center mb-4">
+                        <div class="display-6 text-info mb-3">
+                            <i class="bi bi-speedometer2"></i>
+                        </div>
+                        <h5>Fast Results</h5>
+                        <p class="text-muted">Redis 8 vector search provides lightning-fast semantic similarity results.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Search Results -->
+{% if query %}
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-search"></i> Search Results for "{{ query }}"
+                </h5>
+                {% if results %}
+                <span class="badge bg-primary">{{ results|length }} results</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if results %}
+                <div class="row">
+                    {% for result in results %}
+                    <div class="col-md-6 col-lg-4 mb-4">
+                        <div class="card border-0 shadow-sm h-100 search-result-card">
+                            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                <h6 class="card-title mb-0">{{ result.device_id }}</h6>
+                                <span class="badge bg-success">{{ "%.1f"|format(result.score * 100) }}% Match</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <h6 class="text-primary">Content Preview:</h6>
+                                    <p class="text-muted small">
+                                        {{ result.content[:150] }}{% if result.content|length > 150 %}...{% endif %}
+                                    </p>
+                                </div>
+
+                                {% if result.metadata %}
+                                <div class="mb-3">
+                                    <h6 class="text-info">Device Information:</h6>
+                                    <div class="row">
+                                        {% if result.metadata.device_type %}
+                                        <div class="col-12 mb-1">
+                                            <small class="text-muted">Type:</small>
+                                            <span class="badge bg-primary ms-1">{{ result.metadata.device_type }}</span>
+                                        </div>
+                                        {% endif %}
+                                        {% if result.metadata.manufacturer %}
+                                        <div class="col-12 mb-1">
+                                            <small class="text-muted">Manufacturer:</small>
+                                            <span class="ms-1">{{ result.metadata.manufacturer }}</span>
+                                        </div>
+                                        {% endif %}
+                                        {% if result.metadata.location %}
+                                        <div class="col-12 mb-1">
+                                            <small class="text-muted">Location:</small>
+                                            <span class="ms-1"><i class="bi bi-geo-alt"></i> {{ result.metadata.location }}</span>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                <!-- Similarity Score Bar -->
+                                <div class="mb-3">
+                                    <small class="text-muted">Similarity Score:</small>
+                                    <div class="progress mt-1" style="height: 8px;">
+                                        <div class="progress-bar bg-success" role="progressbar"
+                                             style="width: {{ result.score * 100 }}%"
+                                             aria-valuenow="{{ result.score * 100 }}"
+                                             aria-valuemin="0"
+                                             aria-valuemax="100">
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">{{ "%.1f"|format(result.score * 100) }}%</small>
+                                </div>
+                            </div>
+                            <div class="card-footer bg-white border-0">
+                                <div class="d-grid gap-2 d-md-flex">
+                                    <a href="/device/{{ result.device_id }}" class="btn btn-primary btn-sm flex-fill">
+                                        <i class="bi bi-eye"></i> View Details
+                                    </a>
+                                    <button type="button" class="btn btn-outline-info btn-sm" onclick="findSimilar('{{ result.device_id }}')">
+                                        <i class="bi bi-search"></i> Similar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <div class="text-muted">
+                        <i class="bi bi-search display-4"></i>
+                        <h5 class="mt-3">No results found</h5>
+                        <p>Try different keywords or check that vector embeddings are generated:</p>
+                        <code>uv run python cli.py generate-embeddings</code>
+                        <div class="mt-4">
+                            <h6>Suggestions:</h6>
+                            <div class="d-flex justify-content-center gap-2 flex-wrap">
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="searchExample('HVAC')">HVAC</button>
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="searchExample('cooling')">cooling</button>
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="searchExample('lighting')">lighting</button>
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="searchExample('server')">server</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Similar Devices Modal -->
+<div class="modal fade" id="similarDevicesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Similar Devices</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="similarDevicesContent">
+                <!-- Content loaded via JavaScript -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function searchExample(query) {
+    document.getElementById('searchInput').value = query;
+    document.getElementById('searchForm').submit();
+}
+
+function findSimilar(deviceId) {
+    const modal = new bootstrap.Modal(document.getElementById('similarDevicesModal'));
+    const content = document.getElementById('similarDevicesContent');
+
+    content.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"></div><p class="mt-2">Finding similar devices...</p></div>';
+    modal.show();
+
+    fetch(`/api/devices/similar/${deviceId}?limit=5`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.length === 0) {
+                content.innerHTML = '<div class="text-center text-muted"><i class="bi bi-search"></i><p class="mt-2">No similar devices found.</p></div>';
+                return;
+            }
+
+            let html = '<div class="row">';
+            data.forEach(item => {
+                const device = item.device;
+                const score = (item.score * 100).toFixed(1);
+
+                html += `
+                    <div class="col-md-6 mb-3">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body">
+                                <h6 class="card-title">${device.name || device.device_id}</h6>
+                                <p class="text-muted small mb-2">${device.device_type.value} • ${device.manufacturer || 'Unknown'}</p>
+                                <p class="text-muted small mb-2"><i class="bi bi-geo-alt"></i> ${device.location || 'Unknown'}</p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="badge bg-success">${score}% Match</span>
+                                    <a href="/device/${device.device_id}" class="btn btn-sm btn-outline-primary">View Details</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+
+            content.innerHTML = html;
+        })
+        .catch(error => {
+            content.innerHTML = '<div class="alert alert-danger">Error loading similar devices: ' + error.message + '</div>';
+        });
+}
+
+// Add hover effects to search result cards
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.search-result-card').forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-5px)';
+        });
+        card.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+        });
+    });
+
+    // Focus search input if no query
+    {% if not query %}
+    document.getElementById('searchInput').focus();
+    {% endif %}
+});
+</script>
+{% endblock %}
