@@ -14,7 +14,7 @@ This implementation adds powerful semantic search capabilities to Redisense usin
 ✅ **Device Embeddings**: Auto-generated during seeding
 ✅ **Semantic Search**: Full KNN search with metadata
 ✅ **CLI Commands**: All vector operations working
-✅ **Dashboard Integration**: Live semantic search UI in Streamlit
+✅ **Dashboard Integration**: Live semantic search UI in FastAPI Web Interface
 ⏳ **API Endpoints**: Pending (next step)
 
 ## 🎯 Dashboard Features Live!
@@ -278,7 +278,7 @@ This demonstrates true semantic understanding - finding relevant climate control
 
 ## 🔧 Integration Points
 
-### Streamlit Dashboard
+### FastAPI Web Interface
 
 - Add search bar for semantic device search
 - Real-time search suggestions
@@ -298,7 +298,7 @@ This demonstrates true semantic understanding - finding relevant climate control
 
 ## 📈 Next Steps
 
-1. **Dashboard Integration**: Add search UI to Streamlit
+1. **Dashboard Integration**: Add search UI to FastAPI Web Interface
 2. **Auto-Refresh**: Real-time embedding updates
 3. **Advanced Queries**: Hybrid vector + traditional search
 4. **Analytics**: Search pattern analysis
@@ -362,7 +362,7 @@ uv run python cli.py generate-embeddings
 
 ## 🎮 **Live Demo - Semantic Search in Action!**
 
-The Redis 8 vector search is now **fully integrated** into the Streamlit dashboard! Here's what you can experience:
+The Redis 8 vector search is now **fully integrated** into the FastAPI web interface! Here's what you can experience:
 
 ### 🔍 **Interactive Search Experience**
 

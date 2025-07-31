@@ -419,39 +419,35 @@ def clear_data():
         click.echo("❌ Operation cancelled")
 
 @cli.command()
-def dashboard():
-    """Launch the Streamlit dashboard."""
-    click.echo("🚀 Starting Redisense Dashboard...")
-    click.echo("📊 Opening browser to view the dashboard...")
+def web():
+    """Launch the FastAPI web application."""
+    click.echo("🚀 Starting Redisense Web Application...")
+    click.echo("🌐 Web interface will be available at: http://localhost:8080")
 
     import subprocess
     import os
 
     try:
-        # Change to the correct directory
-        dashboard_dir = os.path.join(os.path.dirname(__file__), 'dashboard')
-        app_path = os.path.join(dashboard_dir, 'streamlit_app.py')
+        # Get the web app path
+        web_app_path = os.path.join(os.path.dirname(__file__), 'web_app.py')
 
-        click.echo(f"📂 Dashboard location: {app_path}")
-        click.echo("🌐 Dashboard will be available at: http://localhost:8501")
-        click.echo("🔄 The dashboard auto-refreshes every 3 minutes")
-        click.echo("\n💡 Tip: Start streaming data in another terminal with:")
-        click.echo("   uv run python cli.py stream-data --device-count 5 --interval 10")
-        click.echo("\n🔍 Enable semantic search with:")
-        click.echo("   uv run python cli.py generate-embeddings")
+        click.echo(f"📂 Web app location: {web_app_path}")
+        click.echo("🔄 The web app includes real-time data and admin panel")
+        click.echo("\n💡 Tip: Use the admin panel to seed data and manage the system")
+        click.echo("   Navigate to: http://localhost:8080/admin")
 
-        # Launch Streamlit
+        # Launch FastAPI with uvicorn
         subprocess.run([
-            "streamlit", "run", app_path,
-            "--server.port", "8501",
-            "--server.address", "0.0.0.0",
-            "--browser.gatherUsageStats", "false"
+            "uvicorn", "web_app:app",
+            "--host", "0.0.0.0",
+            "--port", "8080",
+            "--reload"
         ])
 
     except Exception as e:
-        click.echo(f"❌ Error launching dashboard: {e}")
+        click.echo(f"❌ Error launching web app: {e}")
         click.echo("📋 Try running manually:")
-        click.echo("   cd dashboard && streamlit run streamlit_app.py")
+        click.echo("   uvicorn web_app:app --host 0.0.0.0 --port 8080 --reload")
 
 @cli.command()
 @click.argument('device_id')

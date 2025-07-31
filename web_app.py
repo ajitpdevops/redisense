@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 FastAPI Web Application for Redisense Energy Monitoring
-A modern, intuitive alternative to the Streamlit dashboard
+A modern, intuitive web interface for energy monitoring and analytics
 """
 
 import sys
@@ -862,6 +862,76 @@ async def get_time_series_data(hours: int = Query(24, ge=1, le=168)):
             content={"error": f"Error fetching time series data: {str(e)}"},
             status_code=500
         )
+
+@app.get("/api/analytics/hourly")
+async def get_hourly_analytics():
+    """Get hourly consumption analytics"""
+    try:
+        if not redis_service:
+            return JSONResponse(content={"error": "Redis service not available"}, status_code=503)
+
+        devices = redis_service.get_all_devices()
+        all_readings = []
+
+        # Get last 24 hours of data
+        end_time = datetime.utcnow()
+        start_time = end_time - timedelta(hours=24)
+
+        for device in devices:
+            try:
+                readings = redis_service.get_energy_readings(
+                    device.device_id,
+                    start_time,
+                    end_time,
+                    limit=100
+                )
+                all_readings.extend(readings)
+            except Exception as e:
+                print(f"Error getting readings for device {device.device_id}: {e}")
+                continue
+
+        # Process hourly data
+        analytics_data = process_analytics_data(all_readings)
+
+        return JSONResponse(content={"hourly": analytics_data.get('hourly', [])})
+
+    except Exception as e:
+        return JSONResponse(content={"error": f"Failed to get hourly analytics: {str(e)}"}, status_code=500)
+
+@app.get("/api/analytics/top-consumers")
+async def get_top_consumers():
+    """Get top consuming devices"""
+    try:
+        if not redis_service:
+            return JSONResponse(content={"error": "Redis service not available"}, status_code=503)
+
+        devices = redis_service.get_all_devices()
+        all_readings = []
+
+        # Get last 24 hours of data
+        end_time = datetime.utcnow()
+        start_time = end_time - timedelta(hours=24)
+
+        for device in devices:
+            try:
+                readings = redis_service.get_energy_readings(
+                    device.device_id,
+                    start_time,
+                    end_time,
+                    limit=100
+                )
+                all_readings.extend(readings)
+            except Exception as e:
+                print(f"Error getting readings for device {device.device_id}: {e}")
+                continue
+
+        # Process device consumption data
+        analytics_data = process_analytics_data(all_readings)
+
+        return JSONResponse(content={"device_consumption": analytics_data.get('device_consumption', [])})
+
+    except Exception as e:
+        return JSONResponse(content={"error": f"Failed to get top consumers: {str(e)}"}, status_code=500)
 
 if __name__ == "__main__":
     uvicorn.run(

@@ -4,15 +4,44 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Settings:
-    # Redis Configuration
-    REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
-    REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
-    REDIS_USERNAME: str = os.getenv("REDIS_USERNAME", "")
-    REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD", "")
+    # Redis Configuration Toggle
+    USE_REDIS_CLOUD: bool = os.getenv("USE_REDIS_CLOUD", "false").lower() == "true"
+
+    # Redis Cloud Configuration
+    REDIS_CLOUD_HOST: str = os.getenv("REDIS_CLOUD_HOST", "")
+    REDIS_CLOUD_PORT: int = int(os.getenv("REDIS_CLOUD_PORT", "6380"))
+    REDIS_CLOUD_USERNAME: str = os.getenv("REDIS_CLOUD_USERNAME", "")
+    REDIS_CLOUD_PASSWORD: str = os.getenv("REDIS_CLOUD_PASSWORD", "")
+
+    # Local Redis Configuration
+    REDIS_LOCAL_HOST: str = os.getenv("REDIS_LOCAL_HOST", "redis")  # Use 'redis' for Docker, 'localhost' for local
+    REDIS_LOCAL_PORT: int = int(os.getenv("REDIS_LOCAL_PORT", "6379"))
+    REDIS_LOCAL_PASSWORD: str = os.getenv("REDIS_LOCAL_PASSWORD", "")
+
+    # Dynamic Redis Settings (based on toggle)
+    @property
+    def REDIS_HOST(self) -> str:
+        return self.REDIS_CLOUD_HOST if self.USE_REDIS_CLOUD else self.REDIS_LOCAL_HOST
+
+    @property
+    def REDIS_PORT(self) -> int:
+        return self.REDIS_CLOUD_PORT if self.USE_REDIS_CLOUD else self.REDIS_LOCAL_PORT
+
+    @property
+    def REDIS_USERNAME(self) -> str:
+        return self.REDIS_CLOUD_USERNAME if self.USE_REDIS_CLOUD else ""
+
+    @property
+    def REDIS_PASSWORD(self) -> str:
+        return self.REDIS_CLOUD_PASSWORD if self.USE_REDIS_CLOUD else self.REDIS_LOCAL_PASSWORD
 
     # Application Settings
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+
+    # Web Application Settings
+    WEB_HOST: str = os.getenv("WEB_HOST", "0.0.0.0")
+    WEB_PORT: int = int(os.getenv("WEB_PORT", "8080"))
 
     # AI/ML Settings
     ANOMALY_THRESHOLD: float = float(os.getenv("ANOMALY_THRESHOLD", "2.0"))

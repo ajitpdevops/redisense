@@ -31,9 +31,9 @@
                 <div class="btn-group btn-group-sm" role="group">
                     <button type="button" class="btn btn-outline-primary" data-duration="5" onclick="updateTimeSeriesChart(5, 'minutes')">5 Min</button>
                     <button type="button" class="btn btn-outline-primary" data-duration="30" onclick="updateTimeSeriesChart(30, 'minutes')">30 Min</button>
-                    <button type="button" class="btn btn-outline-primary" data-duration="1" onclick="updateTimeSeriesChart(1, 'hours')">1 Hour</button>
+                    <button type="button" class="btn btn-outline-primary active" data-duration="1" onclick="updateTimeSeriesChart(1, 'hours')">1 Hour</button>
                     <button type="button" class="btn btn-outline-primary" data-duration="4" onclick="updateTimeSeriesChart(4, 'hours')">4 Hours</button>
-                    <button type="button" class="btn btn-outline-primary active" data-duration="24" onclick="updateTimeSeriesChart(24, 'hours')">24 Hours</button>
+                    <button type="button" class="btn btn-outline-primary" data-duration="24" onclick="updateTimeSeriesChart(24, 'hours')">24 Hours</button>
                     <button type="button" class="btn btn-outline-primary" data-duration="2" onclick="updateTimeSeriesChart(2, 'days')">2 Days</button>
                     <button type="button" class="btn btn-outline-primary" data-duration="7" onclick="updateTimeSeriesChart(7, 'days')">7 Days</button>
                 </div>
@@ -346,15 +346,15 @@ function initializeAnalyticsCharts() {
     // Initialize time series chart first
     initializeTimeSeriesChart();
 
-    // Hourly consumption chart
+    // Initialize empty hourly consumption chart
     const hourlyCtx = document.getElementById('hourlyChart').getContext('2d');
     hourlyChart = new Chart(hourlyCtx, {
         type: 'line',
         data: {
-            labels: {{ analytics.hourly | map(attribute='hour') | list | tojson }},
+            labels: [],
             datasets: [{
                 label: 'Power Consumption (kW)',
-                data: {{ analytics.hourly | map(attribute='power') | list | tojson }},
+                data: [],
                 borderColor: '#0d6efd',
                 backgroundColor: 'rgba(13, 110, 253, 0.1)',
                 tension: 0.4,
@@ -389,14 +389,14 @@ function initializeAnalyticsCharts() {
         }
     });
 
-    // Top consumers chart
+    // Initialize empty top consumers chart
     const topConsumersCtx = document.getElementById('topConsumersChart').getContext('2d');
     topConsumersChart = new Chart(topConsumersCtx, {
         type: 'doughnut',
         data: {
-            labels: {{ analytics.device_consumption | map(attribute='device') | list | tojson }},
+            labels: [],
             datasets: [{
-                data: {{ analytics.device_consumption | map(attribute='consumption') | list | tojson }},
+                data: [],
                 backgroundColor: [
                     '#0d6efd', '#198754', '#ffc107', '#dc3545', '#6f42c1',
                     '#fd7e14', '#20c997', '#6c757d', '#e83e8c', '#17a2b8'
@@ -431,6 +431,10 @@ function initializeAnalyticsCharts() {
             }
         }
     });
+
+    // Load analytics data after charts are initialized
+    loadHourlyConsumptionData();
+    loadTopConsumersData();
 }
 
 function initializeTimeSeriesChart() {
@@ -491,8 +495,7 @@ function initializeTimeSeriesChart() {
                     }
                 }
             }
-        }
-    });
+        });
 
     // Load initial data (24 hours by default)
     updateTimeSeriesChart(24, 'hours');
@@ -502,9 +505,31 @@ function updateTimeSeriesChart(duration, unit) {
     const loadingDiv = document.getElementById('timeSeriesLoading');
     loadingDiv.style.display = 'block';
 
-    // Update active button
+    // Update active button - use data attributes for reliable matching
     document.querySelectorAll('.btn-group .btn').forEach(btn => btn.classList.remove('active'));
-    event.target.classList.add('active');
+
+    // Find and activate the correct button based on data-duration and unit
+    const buttons = document.querySelectorAll('.btn-group .btn[data-duration]');
+    buttons.forEach(btn => {
+        const btnDuration = parseInt(btn.getAttribute('data-duration'));
+        const btnText = btn.textContent.trim().toLowerCase();
+
+        // Match based on duration and text content
+        let matches = false;
+        if (btnDuration === duration) {
+            if (unit === 'minutes' && btnText.includes('min')) {
+                matches = true;
+            } else if (unit === 'hours' && btnText.includes('hour')) {
+                matches = true;
+            } else if (unit === 'days' && btnText.includes('day')) {
+                matches = true;
+            }
+        }
+
+        if (matches) {
+            btn.classList.add('active');
+        }
+    });
 
     // Convert duration to hours for API
     let hours;
@@ -523,6 +548,7 @@ function updateTimeSeriesChart(duration, unit) {
     }
 
     console.log(`Loading time series data for ${duration} ${unit} (${hours} hours)`);
+    console.log('Looking for button with duration:', duration, 'and unit:', unit);
 
     fetch(`/api/analytics/time-series?hours=${hours}`)
         .then(response => response.json())
@@ -647,6 +673,36 @@ function updateChartDisplay() {
     timeSeriesChart.update();
 }
 
+function loadHourlyConsumptionData() {
+    fetch('/api/analytics/hourly')
+        .then(response => response.json())
+        .then(data => {
+            if (data.hourly && data.hourly.length > 0) {
+                hourlyChart.data.labels = data.hourly.map(item => item.hour);
+                hourlyChart.data.datasets[0].data = data.hourly.map(item => item.power);
+                hourlyChart.update();
+            }
+        })
+        .catch(error => {
+            console.error('Error loading hourly consumption data:', error);
+        });
+}
+
+function loadTopConsumersData() {
+    fetch('/api/analytics/top-consumers')
+        .then(response => response.json())
+        .then(data => {
+            if (data.device_consumption && data.device_consumption.length > 0) {
+                topConsumersChart.data.labels = data.device_consumption.map(item => item.device);
+                topConsumersChart.data.datasets[0].data = data.device_consumption.map(item => item.consumption);
+                topConsumersChart.update();
+            }
+        })
+        .catch(error => {
+            console.error('Error loading top consumers data:', error);
+        });
+}
+
 function refreshAnalytics() {
     location.reload();
 }
@@ -658,6 +714,9 @@ function exportReport() {
 // Initialize charts when page loads
 document.addEventListener('DOMContentLoaded', function() {
     initializeAnalyticsCharts();
+
+    // Load time series data with 1 hour as default
+    updateTimeSeriesChart(1, 'hours');
 
     // Add hover effects to cards
     document.querySelectorAll('.card').forEach(card => {

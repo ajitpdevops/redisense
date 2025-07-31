@@ -1,0 +1,77 @@
+services:
+  # Redis Stack (includes RedisSearch, RedisJSON, RedisTimeSeries, etc.)
+  redis:
+    image: redis:8.2-rc1-alpine
+    container_name: redisense-redis-stack
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-stack-data:/data
+    environment:
+      - REDIS_ARGS=--save 60 1000 --appendonly yes
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - redisense-network
+
+  # RedisInsight for Redis GUI
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: redisense-redisinsight
+    restart: unless-stopped
+    ports:
+      - "5540:5540"
+    volumes:
+      - redisinsight-data:/db
+    environment:
+      - RIPORT=5540
+      - RIHOMEDIR=/db
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - redisense-network
+
+  # Redisense Python Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: redisense-app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - USE_REDIS_CLOUD=false
+      - REDIS_LOCAL_HOST=redis
+      - REDIS_LOCAL_PORT=6379
+      - DEBUG=true
+      - LOG_LEVEL=INFO
+    volumes:
+      - .:/app
+      - /app/.venv # Exclude .venv from mount to use container's venv
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - redisense-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  redis-stack-data:
+    driver: local
+  redisinsight-data:
+    driver: local
+
+networks:
+  redisense-network:
+    driver: bridge

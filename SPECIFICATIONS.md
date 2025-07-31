@@ -34,7 +34,7 @@ Built as part of the **Redis 8 AI Innovators Challenge**, it showcases:
 | Device Metadata | RedisJSON |
 | Search Engine | RedisSearch (FT.SEARCH) |
 | Probabilistic | RedisBloom TopK / Count-Min |
-| Frontend | Streamlit (Python-based UI) |
+| Frontend | FastAPI + Jinja2 Templates |
 | Dev & Sim Tools | Faker, Schedule, Requests |
 |------------------|--------------------------------|
 
@@ -63,12 +63,14 @@ Built as part of the **Redis 8 AI Innovators Challenge**, it showcases:
 - Natural language queries converted to embeddings via MiniLM
 - Redis vector similarity search for pattern/event lookup
 
-### 5. 📊 **Dashboard (Streamlit)**
+### 5. 📊 **Web Interface (FastAPI + Jinja2)**
 
-- Visualizes live time series
-- Lists current anomalies
-- Supports semantic search
+- Modern responsive web interface with Bootstrap 5
+- Visualizes live time series data
+- Lists current anomalies with device details
+- Supports semantic search functionality
 - Shows top devices by activity or anomaly rate
+- Real-time monitoring dashboard
 
 ### 6. 📈 **Query Engine**
 
@@ -91,10 +93,12 @@ redisense/
 │ ├── services/ # Redis, AI, embedding logic
 │ ├── models/ # Pydantic models
 │ └── utils/ # Embedding, anomaly logic
+├── web/
+│ ├── templates/ # Jinja2 HTML templates
+│ └── static/ # CSS, JS, images
 ├── data/
 │ └── generator.py # Simulates incoming energy data
-├── dashboard/
-│ └── streamlit_app.py # Streamlit frontend
+├── web_app.py # FastAPI web application
 ├── requirements.txt
 └── SPECIFICATION.md
 
@@ -138,14 +142,16 @@ redisense/
 
 ---
 
-## 🎨 Frontend: Streamlit
+## 🎨 Frontend: FastAPI Web Interface
 
-Simple web app to:
+Modern responsive web interface featuring:
 
-- Show device usage trends (line chart)
-- List anomalies with metadata
-- Run semantic search over device logs or descriptions
-- Filter devices by location/type
+- **Dashboard**: Real-time energy metrics and system overview
+- **Device Management**: Comprehensive device listing and details
+- **Analytics**: Interactive charts and trend analysis
+- **Search**: Semantic search functionality for device logs and patterns
+- **Admin Panel**: Device registration and configuration
+- **Mobile-Friendly**: Responsive design that works on all devices
 
 ---
 

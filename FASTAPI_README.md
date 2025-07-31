@@ -1,6 +1,6 @@
-# Redisense FastAPI Web Interface
+# Redisense Web Interface
 
-A modern, intuitive web interface for the Redisense energy monitoring system, built with FastAPI and Jinja2 templates as an alternative to the Streamlit dashboard.
+A modern, intuitive web interface for the Redisense energy monitoring system, built with FastAPI and Jinja2 templates.
 
 ## 🌟 Features
 
@@ -93,35 +93,35 @@ Once started, open your browser and navigate to:
 - `GET /api/health` - System health check
 - `DELETE /api/devices/{device_id}` - Delete device
 
-## 🎯 Key Improvements over Streamlit
+## 🎯 Key Features
 
-### Better Performance
+### High Performance
 
-- Faster page loads
-- More efficient data handling
-- Reduced memory usage
-- Better caching
+- Fast page loads
+- Efficient data handling
+- Optimized memory usage
+- Smart caching
 
-### Enhanced UX
+### Enhanced User Experience
 
-- Cleaner, more intuitive interface
-- Better mobile responsiveness
-- Faster navigation
+- Clean, intuitive interface
+- Mobile-responsive design
+- Fast navigation
 - Professional design
 
-### Greater Flexibility
+### Flexible Architecture
 
 - Custom styling and themes
-- Better component control
-- More interactive elements
-- Advanced animations
+- Modular component system
+- Interactive elements
+- Smooth animations
 
 ### Production Ready
 
-- Better error handling
+- Robust error handling
 - Proper HTTP status codes
-- Security considerations
-- Scalability features
+- Security best practices
+- Scalable architecture
 
 ## 🎨 Customization
 
@@ -198,19 +198,6 @@ The FastAPI app is ready for production deployment with:
 - Docker containerization
 - Cloud platform deployment
 
-## 🆚 Streamlit vs FastAPI Comparison
+## � Summary
 
-| Feature           | Streamlit  | FastAPI Interface |
-| ----------------- | ---------- | ----------------- |
-| Setup Time        | ⭐⭐⭐     | ⭐⭐              |
-| Performance       | ⭐⭐       | ⭐⭐⭐⭐⭐        |
-| Customization     | ⭐⭐       | ⭐⭐⭐⭐⭐        |
-| Mobile Support    | ⭐⭐       | ⭐⭐⭐⭐⭐        |
-| Production Ready  | ⭐⭐       | ⭐⭐⭐⭐⭐        |
-| Development Speed | ⭐⭐⭐⭐⭐ | ⭐⭐⭐            |
-| UI Control        | ⭐⭐       | ⭐⭐⭐⭐⭐        |
-| Learning Curve    | ⭐⭐⭐⭐⭐ | ⭐⭐⭐            |
-
-## 🎉 Conclusion
-
-The FastAPI interface provides a more professional, performant, and customizable alternative to Streamlit while maintaining all the functionality of the original dashboard. It's designed for production use and provides a better user experience overall.
+The FastAPI interface provides a professional, performant, and highly customizable web application designed for production use with an excellent user experience.
